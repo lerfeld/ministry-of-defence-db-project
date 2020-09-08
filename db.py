@@ -7,6 +7,8 @@ import db_api
 
 from dataclasses_json import dataclass_json
 
+dict_index = dict()
+
 
 @dataclass_json
 @dataclass
@@ -170,8 +172,7 @@ class DBTable(db_api.DBTable):
             writer = csv.writer(db_table)
             writer.writerows(update_rows)
 
-    def query_table(self, criteria: List[SelectionCriteria]) \
-            -> List[Dict[str, Any]]:
+    def query_table(self, criteria: List[SelectionCriteria]) -> List[Dict[str, Any]]:
         with open(f"{db_api.DB_ROOT}/{self.name}.csv", 'r') as db_table:
             reader = csv.reader(db_table)
             next(reader)
@@ -191,7 +192,31 @@ class DBTable(db_api.DBTable):
         return get_query
 
     def create_index(self, field_to_index: str) -> None:
-        raise NotImplementedError
+        if field_to_index not in [field.name for field in self.fields]:
+            raise ValueError
+
+        with shelve.open(f"{db_api.DB_ROOT}/{self.name}_{field_to_index}.shelve") as file_index:
+            with open(f"{db_api.DB_ROOT}/{self.name}.csv", 'r') as db_table:
+                reader = csv.reader(db_table)
+                next(reader)
+
+                num_index = self.get_index_of_field(field_to_index)
+
+                count = 1
+
+                for record in reader:
+                    if record:
+                        if record[num_index] not in file_index:
+                            file_index[record[num_index]] = [{"file_name": self.name, "num_line": count}]
+                        else:
+                            file_index[record[num_index]] += {"file_name": self.name, "num_line": count}
+                        count += 1
+
+                if self.name not in dict_index:
+                    dict_index[self.name] = [field_to_index]
+
+                else:
+                    dict_index[self.name] += field_to_index
 
 
 @dataclass_json
